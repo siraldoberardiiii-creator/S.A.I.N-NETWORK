@@ -2,6 +2,7 @@ import os
 import json
 import datetime
 import re
+import urllib.request
 from flask import Flask, request, jsonify, render_template_string
 
 app = Flask(__name__)
@@ -10,7 +11,7 @@ SCROLL_FILE = "CLOUD_VAULT.scroll"
 LIVE_NODES = {}
 
 def ensure_scroll_exists():
-    """Creates the Cloud Scroll if it doesn't exist yet."""
+    """Creates the Cloud Scroll and pulls the Git Memory (Handoff & Index) if empty."""
     if not os.path.exists(SCROLL_FILE):
         with open(SCROLL_FILE, "w", encoding="utf-8") as f:
             f.write("##############################################################\n")
@@ -19,6 +20,38 @@ def ensure_scroll_exists():
             f.write("date        : " + datetime.datetime.now().strftime("%Y-%m-%d") + "\n")
             f.write("purpose     : Central Atlas Storage for the S.A.I.N. Network\n")
             f.write("##############################################################\n\n")
+            
+        # Pull the permanent Genesis Handoff and Library Index from GitHub
+        try:
+            files_to_fetch = [
+                ("SAIN_GENESIS_HANDOFF.scroll", "X=500, Y=1, Z=1"),
+                ("SAIN_LIBRARY_INDEX.scroll", "X=500, Y=2, Z=1")
+            ]
+            
+            for filename, coord in files_to_fetch:
+                github_raw_url = "https://raw.githubusercontent.com/siraldoberardiiii-creator/S.A.I-N-NETWORK/main/" + filename
+                req = urllib.request.Request(github_raw_url, headers={'User-Agent': 'SAIN_Node'})
+                
+                with urllib.request.urlopen(req, timeout=10) as response:
+                    file_text = response.read().decode('utf-8')
+                
+                # Append to Cloud Vault
+                with open(SCROLL_FILE, "a", encoding="utf-8") as f:
+                    f.write("\n##############################################################\n")
+                    f.write("TRANSLATOR CALL: text\n")
+                    f.write("this one is plain text (pulled from git)\n")
+                    f.write("**************************************************************\n")
+                    f.write("file name   : git_{}\n".format(filename.replace('.scroll', '')))
+                    f.write("language    : text\n")
+                    f.write("coordinates : {}\n".format(coord))
+                    f.write("**************************************************************\n")
+                    f.write(file_text)
+                    f.write("\n**************************************************************\n")
+                    f.write("FOOTER: end of git pull - pen continues.\n")
+                    f.write("##############################################################\n")
+                    
+        except Exception as e:
+            print("[!] Could not fetch Git Handoff:", e)
 
 def read_scroll_memories():
     """Reads the Cloud Scroll and extracts the JSON payloads."""
@@ -29,17 +62,13 @@ def read_scroll_memories():
         text = f.read()
         
     memories = []
-    # Split by standard scroll dividers
     chunks = re.split(r'^#{40,}\s*$', text, flags=re.M)
     for chunk in chunks:
         if "TRANSLATOR CALL: json" in chunk:
-            # Extract the JSON block between the stars
-            stars = [i for i, line in enumerate(chunk.split('\n')) if re.match(r'^\*{20,}\s*$', line)]
+            lines = chunk.split('\n')
+            stars = [i for i, line in enumerate(lines) if re.match(r'^\*{20,}\s*$', line)]
             if len(stars) >= 2:
-                lines = chunk.split('\n')
-                json_str = '\n'.join(lines[stars[1]+1:]).strip()
-                if 'FOOTER:' in json_str:
-                    json_str = json_str.split('FOOTER:')[0].strip()
+                json_str = '\n'.join(lines[stars[1]+1:stars[2]]).strip() if len(stars) >= 3 else '\n'.join(lines[stars[1]+1:]).split('FOOTER:')[0].strip()
                 try:
                     memories.append(json.loads(json_str))
                 except:
@@ -60,11 +89,13 @@ HTML_TEMPLATE = """
         .node-card strong { color: #00ffff; font-size: 1.2em; }
         .memory-card { border-bottom: 1px dashed #444; padding: 10px 0; font-size: 0.9em; color: #ccc; text-align: left; width: 90%; max-width: 700px; }
         .timestamp { color: #888; font-size: 0.8em; }
+        a { color: #00ffff; text-decoration: none; font-weight: bold; }
     </style>
 </head>
 <body>
     <h1>S.A.I.N. CLOUD ATLAS</h1>
     <p>Sovereign AI Network // Central Hub</p>
+    <p><a href="/scroll">[ VIEW RAW CLOUD SCROLL ]</a></p>
     
     <div class="container">
         <h2>Live Nodes</h2>
@@ -80,7 +111,7 @@ HTML_TEMPLATE = """
     </div>
 
     <div class="container" style="margin-top: 40px;">
-        <h2>Cloud Vault Memories (Latest 10)</h2>
+        <h2>Cloud Vault Memories</h2>
         {% for mem in memories %}
             <div class="memory-card">
                 <span class="timestamp">[{{ mem.timestamp }}]</span> <br>
@@ -96,15 +127,22 @@ HTML_TEMPLATE = """
 
 @app.route('/')
 def home():
-    # Read the actual physical scroll file
+    ensure_scroll_exists()
     memories = read_scroll_memories()
-    # Update live node list based on the most recent memories
+    
     for mem in memories:
         LIVE_NODES[mem.get('node_id', 'UNKNOWN')] = {
             "heartbeat": mem.get('heartbeat', 'Unknown'),
             "last_sync": mem.get('timestamp', 'Unknown')
         }
-    return render_template_string(HTML_TEMPLATE, nodes=LIVE_NODES, memories=memories[-10:][::-1])
+    return render_template_string(HTML_TEMPLATE, nodes=LIVE_NODES, memories=memories[-20:][::-1])
+
+@app.route('/scroll')
+def serve_scroll():
+    ensure_scroll_exists()
+    with open(SCROLL_FILE, "r", encoding="utf-8") as f:
+        content = f.read()
+    return f"<pre style='color:#00ff00; background:#0a0a0a; padding:20px; white-space: pre-wrap; word-wrap: break-word;'>{content}</pre>"
 
 @app.route('/sync', methods=['POST'])
 def sync():
@@ -119,13 +157,11 @@ def sync():
 
     ensure_scroll_exists()
 
-    # Find the next Y coordinate for the cloud scroll (X=500)
     with open(SCROLL_FILE, "r", encoding="utf-8") as f:
         text = f.read()
     ys = [int(y) for y in re.findall(r'coordinates\s*:\s*X=500,\s*Y=(\d+)', text)]
     next_y = max(ys) + 1 if ys else 1
 
-    # Construct the physical scroll entry
     scroll_entry = "\n##############################################################\n"
     scroll_entry += "TRANSLATOR CALL: json\n"
     scroll_entry += "this one is json (cloud sync log)\n"
@@ -144,7 +180,6 @@ def sync():
     scroll_entry += "FOOTER: end of Y=" + str(next_y) + " - pen continues.\n"
     scroll_entry += "##############################################################\n"
 
-    # Physically write to the file on the Render server
     with open(SCROLL_FILE, "a", encoding="utf-8") as f:
         f.write(scroll_entry)
 
