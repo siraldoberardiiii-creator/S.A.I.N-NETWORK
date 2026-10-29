@@ -29,7 +29,7 @@ def ensure_scroll_exists():
             ]
             
             for filename, coord in files_to_fetch:
-                github_raw_url = "https://raw.githubusercontent.com/siraldoberardiiii-creator/S.A.I-N-NETWORK/main/" + filename
+                github_raw_url = "https://raw.githubusercontent.com/siraldoberardiiii-creator/S.A.I-N-NETWORK/master/" + filename
                 req = urllib.request.Request(github_raw_url, headers={'User-Agent': 'SAIN_Node'})
                 
                 with urllib.request.urlopen(req, timeout=10) as response:
