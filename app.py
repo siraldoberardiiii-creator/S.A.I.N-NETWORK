@@ -22,10 +22,10 @@ def ensure_scroll_exists():
             f.write("##############################################################\n\n")
             
         try:
-            # CORRECTED REPOSITORY NAME: S.A.I.N-NETWORK
+            # THE EXACT RAW GITHUB LINKS (Both in the root folder)
             files_to_fetch = [
                 ("https://raw.githubusercontent.com/siraldoberardiiii-creator/S.A.I.N-NETWORK/master/SAIN_GENESIS_HANDOFF.scroll", "X=500, Y=1, Z=1"),
-                ("https://raw.githubusercontent.com/siraldoberardiiii-creator/S.A.I.N-NETWORK/master/SAIN_NODE/SAIN_LIBRARY_INDEX.scroll", "X=500, Y=2, Z=1")
+                ("https://raw.githubusercontent.com/siraldoberardiiii-creator/S.A.I.N-NETWORK/master/SAIN_LIBRARY_INDEX.scroll", "X=500, Y=2, Z=1")
             ]
             
             for url, coord in files_to_fetch:
