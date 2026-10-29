@@ -25,7 +25,7 @@ def ensure_scroll_exists():
         try:
             files_to_fetch = [
                 ("SAIN_GENESIS_HANDOFF.scroll", "X=500, Y=1, Z=1"),
-                ("SAIN_LIBRARY_INDEX.scroll", "X=500, Y=2, Z=1")
+                ("SAIN_NODE/SAIN_LIBRARY_INDEX.scroll", "X=500, Y=2, Z=1")
             ]
             
             for filename, coord in files_to_fetch:
@@ -41,7 +41,7 @@ def ensure_scroll_exists():
                     f.write("TRANSLATOR CALL: text\n")
                     f.write("this one is plain text (pulled from git)\n")
                     f.write("**************************************************************\n")
-                    f.write("file name   : git_{}\n".format(filename.replace('.scroll', '')))
+                    f.write("file name   : git_{}\n".format(filename.split('/')[-1].replace('.scroll', '')))
                     f.write("language    : text\n")
                     f.write("coordinates : {}\n".format(coord))
                     f.write("**************************************************************\n")
@@ -68,7 +68,12 @@ def read_scroll_memories():
             lines = chunk.split('\n')
             stars = [i for i, line in enumerate(lines) if re.match(r'^\*{20,}\s*$', line)]
             if len(stars) >= 2:
-                json_str = '\n'.join(lines[stars[1]+1:stars[2]]).strip() if len(stars) >= 3 else '\n'.join(lines[stars[1]+1:]).split('FOOTER:')[0].strip()
+                if len(stars) >= 3:
+                    json_str = '\n'.join(lines[stars[1]+1:stars[2]]).strip()
+                else:
+                    json_str = '\n'.join(lines[stars[1]+1:]).strip()
+                    if 'FOOTER:' in json_str:
+                        json_str = json_str.split('FOOTER:')[0].strip()
                 try:
                     memories.append(json.loads(json_str))
                 except:
@@ -96,6 +101,7 @@ HTML_TEMPLATE = """
     <h1>S.A.I.N. CLOUD ATLAS</h1>
     <p>Sovereign AI Network // Central Hub</p>
     <p><a href="/scroll">[ VIEW RAW CLOUD SCROLL ]</a></p>
+    <p><a href="/reset" style="color: #ff0000;">[ RESET & RE-FETCH FROM GIT ]</a></p>
     
     <div class="container">
         <h2>Live Nodes</h2>
@@ -143,6 +149,13 @@ def serve_scroll():
     with open(SCROLL_FILE, "r", encoding="utf-8") as f:
         content = f.read()
     return f"<pre style='color:#00ff00; background:#0a0a0a; padding:20px; white-space: pre-wrap; word-wrap: break-word;'>{content}</pre>"
+
+@app.route('/reset')
+def reset():
+    if os.path.exists(SCROLL_FILE):
+        os.remove(SCROLL_FILE)
+    ensure_scroll_exists()
+    return "<h1 style='color:green;'>Scroll reset and re-fetched from Git. <a href='/'>Go to Dashboard</a></h3>"
 
 @app.route('/sync', methods=['POST'])
 def sync():
