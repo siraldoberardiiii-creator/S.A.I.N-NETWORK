@@ -21,27 +21,27 @@ def ensure_scroll_exists():
             f.write("purpose     : Central Atlas Storage for the S.A.I.N. Network\n")
             f.write("##############################################################\n\n")
             
-        # Pull the permanent Genesis Handoff and Library Index from GitHub
         try:
+            # EXACT LINKS USING THE 'master' BRANCH
             files_to_fetch = [
-                ("SAIN_GENESIS_HANDOFF.scroll", "X=500, Y=1, Z=1"),
-                ("SAIN_NODE/SAIN_LIBRARY_INDEX.scroll", "X=500, Y=2, Z=1")
+                ("https://raw.githubusercontent.com/siraldoberardiiii-creator/S.A.I-N-NETWORK/master/SAIN_GENESIS_HANDOFF.scroll", "X=500, Y=1, Z=1"),
+                ("https://raw.githubusercontent.com/siraldoberardiiii-creator/S.A.I-N-NETWORK/master/SAIN_NODE/SAIN_LIBRARY_INDEX.scroll", "X=500, Y=2, Z=1")
             ]
             
-            for filename, coord in files_to_fetch:
-                github_raw_url = "https://raw.githubusercontent.com/siraldoberardiiii-creator/S.A.I-N-NETWORK/master/" + filename
-                req = urllib.request.Request(github_raw_url, headers={'User-Agent': 'SAIN_Node'})
+            for url, coord in files_to_fetch:
+                req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
                 
                 with urllib.request.urlopen(req, timeout=10) as response:
                     file_text = response.read().decode('utf-8')
                 
-                # Append to Cloud Vault
+                filename = url.split('/')[-1].replace('.scroll', '')
+                
                 with open(SCROLL_FILE, "a", encoding="utf-8") as f:
                     f.write("\n##############################################################\n")
                     f.write("TRANSLATOR CALL: text\n")
                     f.write("this one is plain text (pulled from git)\n")
                     f.write("**************************************************************\n")
-                    f.write("file name   : git_{}\n".format(filename.split('/')[-1].replace('.scroll', '')))
+                    f.write("file name   : git_{}\n".format(filename))
                     f.write("language    : text\n")
                     f.write("coordinates : {}\n".format(coord))
                     f.write("**************************************************************\n")
@@ -54,13 +54,10 @@ def ensure_scroll_exists():
             print("[!] Could not fetch Git Handoff:", e)
 
 def read_scroll_memories():
-    """Reads the Cloud Scroll and extracts the JSON payloads."""
     if not os.path.exists(SCROLL_FILE):
         return []
-    
     with open(SCROLL_FILE, "r", encoding="utf-8") as f:
         text = f.read()
-        
     memories = []
     chunks = re.split(r'^#{40,}\s*$', text, flags=re.M)
     for chunk in chunks:
@@ -68,12 +65,7 @@ def read_scroll_memories():
             lines = chunk.split('\n')
             stars = [i for i, line in enumerate(lines) if re.match(r'^\*{20,}\s*$', line)]
             if len(stars) >= 2:
-                if len(stars) >= 3:
-                    json_str = '\n'.join(lines[stars[1]+1:stars[2]]).strip()
-                else:
-                    json_str = '\n'.join(lines[stars[1]+1:]).strip()
-                    if 'FOOTER:' in json_str:
-                        json_str = json_str.split('FOOTER:')[0].strip()
+                json_str = '\n'.join(lines[stars[1]+1:stars[2]]).strip() if len(stars) >= 3 else '\n'.join(lines[stars[1]+1:]).split('FOOTER:')[0].strip()
                 try:
                     memories.append(json.loads(json_str))
                 except:
@@ -135,7 +127,6 @@ HTML_TEMPLATE = """
 def home():
     ensure_scroll_exists()
     memories = read_scroll_memories()
-    
     for mem in memories:
         LIVE_NODES[mem.get('node_id', 'UNKNOWN')] = {
             "heartbeat": mem.get('heartbeat', 'Unknown'),
@@ -155,51 +146,32 @@ def reset():
     if os.path.exists(SCROLL_FILE):
         os.remove(SCROLL_FILE)
     ensure_scroll_exists()
-    return "<h1 style='color:green;'>Scroll reset and re-fetched from Git. <a href='/'>Go to Dashboard</a></h3>"
+    return "<h1 style='color:green;'>Scroll reset and re-fetched from Git. <a href='/'>Go to Dashboard</a></h1>"
 
 @app.route('/sync', methods=['POST'])
 def sync():
     data = request.json
-    if not data:
-        return jsonify({"error": "No data provided"}), 400
-
+    if not data: return jsonify({"error": "No data"}), 400
     node_id = data.get('node_id', 'UNKNOWN')
     heartbeat = data.get('heartbeat', '78.5 BPM')
     memory_data = data.get('memory', '')
     timestamp = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
-
     ensure_scroll_exists()
-
     with open(SCROLL_FILE, "r", encoding="utf-8") as f:
         text = f.read()
     ys = [int(y) for y in re.findall(r'coordinates\s*:\s*X=500,\s*Y=(\d+)', text)]
     next_y = max(ys) + 1 if ys else 1
-
     scroll_entry = "\n##############################################################\n"
-    scroll_entry += "TRANSLATOR CALL: json\n"
-    scroll_entry += "this one is json (cloud sync log)\n"
-    scroll_entry += "**************************************************************\n"
-    scroll_entry += "file name   : cloud_sync_" + str(node_id) + "\n"
-    scroll_entry += "language    : json\n"
-    scroll_entry += "coordinates : X=500, Y=" + str(next_y) + ", Z=1\n"
-    scroll_entry += "**************************************************************\n"
-    scroll_entry += "{\n"
-    scroll_entry += '  "node_id": "' + str(node_id) + '",\n'
-    scroll_entry += '  "timestamp": "' + str(timestamp) + '",\n'
-    scroll_entry += '  "heartbeat": "' + str(heartbeat) + '",\n'
-    scroll_entry += '  "memory": "' + str(memory_data) + '"\n'
-    scroll_entry += "}\n"
-    scroll_entry += "**************************************************************\n"
-    scroll_entry += "FOOTER: end of Y=" + str(next_y) + " - pen continues.\n"
-    scroll_entry += "##############################################################\n"
-
+    scroll_entry += "TRANSLATOR CALL: json\nthis one is json (cloud sync log)\n**************************************************************\n"
+    scroll_entry += "file name   : cloud_sync_" + str(node_id) + "\nlanguage    : json\n"
+    scroll_entry += "coordinates : X=500, Y=" + str(next_y) + ", Z=1\n**************************************************************\n"
+    scroll_entry += "{\n  \"node_id\": \"" + str(node_id) + "\",\n  \"timestamp\": \"" + str(timestamp) + "\",\n"
+    scroll_entry += "  \"heartbeat\": \"" + str(heartbeat) + "\",\n  \"memory\": \"" + str(memory_data) + "\"\n}\n"
+    scroll_entry += "**************************************************************\nFOOTER: end of Y=" + str(next_y) + " - pen continues.\n##############################################################\n"
     with open(SCROLL_FILE, "a", encoding="utf-8") as f:
         f.write(scroll_entry)
-
-    print(f"[*] SYNC RECEIVED from {node_id}. Written to Cloud Scroll at X=500, Y={next_y}.")
     return jsonify({"status": "success", "message": "Memory written to Cloud Scroll at Y=" + str(next_y)}), 200
 
 if __name__ == '__main__':
     ensure_scroll_exists()
-    port = int(os.environ.get('PORT', 10000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))
