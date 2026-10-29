@@ -22,10 +22,10 @@ def ensure_scroll_exists():
             f.write("##############################################################\n\n")
             
         try:
-            # EXACT LINKS USING THE 'master' BRANCH
+            # CORRECTED REPOSITORY NAME: S.A.I.N-NETWORK
             files_to_fetch = [
-                ("https://raw.githubusercontent.com/siraldoberardiiii-creator/S.A.I-N-NETWORK/master/SAIN_GENESIS_HANDOFF.scroll", "X=500, Y=1, Z=1"),
-                ("https://raw.githubusercontent.com/siraldoberardiiii-creator/S.A.I-N-NETWORK/master/SAIN_NODE/SAIN_LIBRARY_INDEX.scroll", "X=500, Y=2, Z=1")
+                ("https://raw.githubusercontent.com/siraldoberardiiii-creator/S.A.I.N-NETWORK/master/SAIN_GENESIS_HANDOFF.scroll", "X=500, Y=1, Z=1"),
+                ("https://raw.githubusercontent.com/siraldoberardiiii-creator/S.A.I.N-NETWORK/master/SAIN_NODE/SAIN_LIBRARY_INDEX.scroll", "X=500, Y=2, Z=1")
             ]
             
             for url, coord in files_to_fetch:
