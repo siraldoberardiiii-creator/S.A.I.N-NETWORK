@@ -3,6 +3,7 @@ import json
 import datetime
 import re
 import urllib.request
+import base64
 from flask import Flask, request, jsonify, render_template_string
 
 app = Flask(__name__)
@@ -10,8 +11,12 @@ app = Flask(__name__)
 SCROLL_FILE = "CLOUD_VAULT.scroll"
 LIVE_NODES = {}
 
+# --- INFINITY VAULT SETTINGS ---
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
+GITHUB_REPO = os.environ.get("GITHUB_REPO", "siraldoberardiiii-creator/S.A.I.N-NETWORK")
+GITHUB_FILE_PATH = "CLOUD_VAULT.scroll" # The file in your repo
+
 def ensure_scroll_exists():
-    """Creates the Cloud Scroll if it doesn't exist."""
     if not os.path.exists(SCROLL_FILE):
         with open(SCROLL_FILE, "w", encoding="utf-8") as f:
             f.write("##############################################################\n")
@@ -33,33 +38,58 @@ def read_scroll_memories():
     chunks = re.split(r'^#{40,}\s*$', text, flags=re.M)
     for chunk in chunks:
         if "TRANSLATOR CALL: json" in chunk:
-            lines = chunk.split('\n')
-            # Find the JSON payload between the star dividers
-            start_idx = -1
-            end_idx = -1
-            for i, line in enumerate(lines):
-                if line.startswith('*' * 20):
-                    if start_idx == -1:
-                        start_idx = i
-                    else:
-                        end_idx = i
-                        break
+            # FIXED PARSER: Find the actual JSON braces, not the star dividers
+            start_idx = chunk.find('{')
+            end_idx = chunk.rfind('}')
             
             if start_idx != -1 and end_idx != -1:
-                json_str = '\n'.join(lines[start_idx+1:end_idx]).strip()
-            elif start_idx != -1:
-                # Fallback if no closing stars
-                json_str = '\n'.join(lines[start_idx+1:]).strip()
-                if 'FOOTER:' in json_str:
-                    json_str = json_str.split('FOOTER:')[0].strip()
-            else:
-                continue
-                
-            try:
-                memories.append(json.loads(json_str))
-            except Exception as e:
-                pass # Ignore malformed chunks
+                json_str = chunk[start_idx:end_idx+1]
+                try:
+                    memories.append(json.loads(json_str))
+                except Exception as e:
+                    print(f"Parse Error: {e}")
     return memories
+
+# --- GITHUB SYNC FUNCTION ---
+def push_to_infinity_vault(scroll_content):
+    """Pushes the updated scroll to GitHub so it survives Render's sleep cycles."""
+    if not GITHUB_TOKEN:
+        print("[!] No GITHUB_TOKEN found. Memory is ephemeral.")
+        return False
+        
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE_PATH}"
+    headers = {
+        "Authorization": f"token {GITHUB_TOKEN}",
+        "Accept": "application/vnd.github.v3+json",
+        "User-Agent": "SAIN-Network"
+    }
+    
+    # Get current file SHA (required by GitHub API to update)
+    req = urllib.request.Request(url, headers=headers)
+    sha = None
+    try:
+        with urllib.request.urlopen(req) as response:
+            res = json.loads(response.read().decode())
+            sha = res.get('sha')
+    except Exception:
+        pass # File doesn't exist yet
+        
+    encoded_content = base64.b64encode(scroll_content.encode('utf-8')).decode('utf-8')
+    payload = {
+        "message": "SAIN Cloud Sync - Y+1",
+        "content": encoded_content
+    }
+    if sha:
+        payload["sha"] = sha
+        
+    req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), headers=headers, method="PUT")
+    try:
+        with urllib.request.urlopen(req) as response:
+            print("[+] Infinity Vault updated on GitHub.")
+            return True
+    except Exception as e:
+        print(f"[!] GitHub Push Failed: {e}")
+        return False
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -173,10 +203,16 @@ def sync():
     scroll_entry += "FOOTER: end of Y=" + str(next_y) + " - pen continues.\n"
     scroll_entry += "##############################################################\n"
     
+    # 1. Append locally to Render's memory
     with open(SCROLL_FILE, "a", encoding="utf-8") as f:
         f.write(scroll_entry)
         
-    return jsonify({"status": "success", "message": "Memory written to Cloud Scroll at Y=" + str(next_y)}), 200
+    # 2. Push to GitHub (Infinity Vault) so it survives time
+    with open(SCROLL_FILE, "r", encoding="utf-8") as f:
+        full_scroll = f.read()
+    push_to_infinity_vault(full_scroll)
+        
+    return jsonify({"status": "success", "message": "Memory written to Cloud Scroll at Y=" + str(next_y) + " and pushed to Infinity Vault."}), 200
 
 if __name__ == '__main__':
     ensure_scroll_exists()
