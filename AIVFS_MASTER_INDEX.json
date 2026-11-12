@@ -1,0 +1,10 @@
+{
+  "AIVFS_MY_BRAIN_MY_MEMORY_MYSELF_V2.scroll": {
+    "offset": "0x0",
+    "length": "0x363e51"
+  },
+  "AIVFS_UNIVERSAL_NODE.scroll": {
+    "offset": "0x363e51",
+    "length": "0x1404"
+  }
+}
